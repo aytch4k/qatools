@@ -1,0 +1,25 @@
+# Essential plugins
+# workflow-aggregator:2.10 - Commented out due to dependency issues
+# git:5.0.0 - Commented out due to dependency issues
+# pipeline-stage-view:2.33 - Commented out due to dependency issues
+# blueocean:latest - Commented out due to dependency issues
+# docker-workflow:latest - Commented out due to dependency issues
+# credentials:latest - Commented out due to dependency issues
+# credentials-binding:latest - Commented out due to dependency issues
+# timestamper:latest - Commented out due to dependency issues
+# ws-cleanup:latest - Commented out due to dependency issues
+# ansicolor:latest - Commented out due to dependency issues
+
+# SonarQube integration
+sonar:2.15
+# sonar-quality-gates:latest - Commented out due to dependency issues
+
+# Testing and reporting
+# junit:1153.v1c24f1a_d2553 - Commented out due to dependency issues
+# htmlpublisher:1.31 - Commented out due to dependency issues
+# allure-jenkins-plugin:latest - Commented out due to dependency issues
+# performance:latest - Commented out due to dependency issues
+
+# UI testing
+# selenium:latest - Commented out due to dependency issues
+# Appium plugin is no longer available, using Selenium instead

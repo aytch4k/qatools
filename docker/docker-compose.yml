@@ -1,0 +1,166 @@
+name: quality-assurance-platform
+
+services:
+  # Jenkins for CI/CD pipelines
+  jenkins:
+    container_name: devops-jenkins
+    image: jenkins/jenkins:lts
+    ports:
+      - "8081:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./tests:/var/jenkins_home/tests
+      - ./results:/var/jenkins_home/results
+      - ./jenkins-plugins.txt:/usr/share/jenkins/ref/plugins.txt
+      - ./jenkins-init.groovy:/usr/share/jenkins/ref/init.groovy.d/init.groovy
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+      - JENKINS_UC_INSECURE=true
+      - TZ=UTC
+      - SONAR_TOKEN=${SONAR_TOKEN}
+    command: >
+      bash -c "
+        jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt &&
+        /usr/local/bin/jenkins.sh"
+    depends_on:
+      - sonarqube
+
+  # Test runner with all tools
+  test-runner:
+    container_name: qa-test-runner
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: my-test-runner:latest
+    volumes:
+      - ./tests:/app/tests
+      - ./results:/app/results
+    environment:
+      - GANACHE_PORT=8545
+      - SELENIUM_HUB_URL=http://selenium-hub:4444/wd/hub
+      - SONAR_HOST_URL=http://sonarqube:9000
+      - SONAR_TOKEN=${SONAR_TOKEN}
+      - COSMOS_RPC=http://cosmos-node:26657
+      - POLKADOT_RPC=http://polkadot-node:9944
+      - SONAR_SCANNER_OPTS=-Dsonar.projectKey=my_project
+      - ALGORAND_NODE=http://algorand-node:4001
+      - APPIUM_HOST=http://appium:4723
+    depends_on:
+      - ganache
+      - cosmos-node
+      - polkadot-node
+      - algorand-node
+      - selenium-hub
+      - appium
+      - sonarqube
+    command: >
+      bash -c "echo 'Starting tests...' && 
+               ganache --port 8545 --quiet & 
+               sleep 5 && 
+               pytest /app/tests --html=/app/results/report.html --alluredir=/app/results/allure && 
+               jmeter -n -t /app/tests/load_test.jmx -l /app/results/jmeter_results.jtl && 
+               k6 run /app/tests/load_test.js &&
+               sonar-scanner -Dsonar.projectKey=my_project -Dsonar.sources=/app/tests -Dsonar.host.url=http://sonarqube:9000"
+
+  # Ganache (Ethereum-compatible blockchain)
+  ganache:
+    container_name: qa-ganache
+    image: trufflesuite/ganache:latest
+    ports:
+      - "8545:8545"
+    command: --host 0.0.0.0 --port 8545
+
+  # Cosmos Node (using Ubuntu as a placeholder)
+  cosmos-node:
+    container_name: blockchain-node-cosmos
+    image: ubuntu:latest
+    ports:
+      - "26657:26657"
+      - "1317:1317"
+    command: bash -c "apt-get update && apt-get install -y netcat && nc -l -p 26657 -k"
+
+  # Polkadot Node (using Ubuntu as a placeholder)
+  polkadot-node:
+    container_name: blockchain-node-polkadot
+    image: ubuntu:latest
+    ports:
+      - "9944:9944"
+      - "30333:30333"
+    command: bash -c "apt-get update && apt-get install -y netcat && nc -l -p 9944 -k"
+
+  # Algorand Node (using Ubuntu as a placeholder)
+  algorand-node:
+    container_name: blockchain-node-algorand
+    image: ubuntu:latest
+    ports:
+      - "4001:4001"
+    command: bash -c "apt-get update && apt-get install -y netcat && nc -l -p 4001 -k"
+
+  # Selenium Grid Hub
+  selenium-hub:
+    container_name: qa-selenium-grid-hub
+    image: selenium/hub:4.11
+    ports:
+      - "4444:4444"
+
+  # Selenium Firefox Node
+  firefox:
+    container_name: qa-selenium-firefox-node
+    image: selenium/node-firefox:4.11
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    volumes:
+      - /dev/shm:/dev/shm
+
+  # Appium (for iOS and SDK testing)
+  appium:
+    container_name: qa-appium
+    image: appium/appium:latest
+    ports:
+      - "4723:4723"
+    privileged: true
+    volumes:
+      - ./appium:/appium
+    environment:
+      - APPIUM_HOST=0.0.0.0
+      - APPIUM_PORT=4723
+
+  # SonarQube Server
+  sonarqube:
+    container_name: qa-sonarqube
+    image: sonarqube:10-community
+    ports:
+      - "9001:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://db:5432/sonar
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar
+    depends_on:
+      - db
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+
+  # PostgreSQL for SonarQube
+  db:
+    container_name: db-postgres-15
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+      - POSTGRES_DB=sonar
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  jenkins_home:
+  sonarqube_data:
+  sonarqube_logs:
+  postgres_data:
